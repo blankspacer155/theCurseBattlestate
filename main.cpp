@@ -21,7 +21,7 @@ public:
 
 	//variables
 	bool isdead = false;
-	float hp = 200;
+	float hp = 400;
 	float max_hp = 200;
 	float att = 110;
 	float def = 10;
@@ -31,9 +31,11 @@ public:
 	int current_exp = 0;
 	int max_exp = 900;
 
+	int damageReceived;
 	//enemy only
 	int droprate = 30;
 	int dropnum = 1;
+	bool isAttacked = false;
 	
 
 	//item
@@ -80,7 +82,7 @@ public:
 
 	void InitEnemystatus(int stagelevel)
 	{
-		this->hp = 100.f * stagelevel;
+		this->hp = 200.f * stagelevel;
 		this->att = 30.f * stagelevel;
 		this->def = 10.f * stagelevel;
 		this->droprate = 30;
@@ -98,6 +100,7 @@ public:
 		if (damage <= 0) damage = 0;   //def>atk
 
 		target->hp -= damage;
+		target->damageReceived = (int)damage;
 	}
 
 };
@@ -499,7 +502,32 @@ public:
 	bool isActive = false;
 	bool isTextshowend=true;
 
+	
 	//function
+
+	string intTostring(int num)
+	{
+		int count=0;
+		string text = "";
+		while (num>0)
+		{   
+			
+			text += '0' + (num % 10 );
+			num /= 10;
+
+			count++;
+		}
+		for (int i = 0; i < count/2; i++)
+		{
+			char temp;
+			temp=text[i];
+			int ind = count - 1 - i;
+			text[i] = text[ind];
+			text[ind] = temp;
+		}
+		return text;
+	}
+	
 	void setText(string word)
 	{
 		this->text.setString(word);
@@ -970,7 +998,8 @@ public:
 	//status
 	Status playerstatus, * enemystatus, * ptplayerstatus;
 	Status* targetstatus;
-	int deadeneycount = 0;
+	int enemyAttacked = 0;
+	int enemydead = 0;
 	//target cursor
 	Entity targetCursor, * targetentity;
 	Texture targetCursortex;
@@ -1058,7 +1087,8 @@ public:
 		this->playerstate = 0;//set idle
 
 		this->playerdamage.setBase(&this->player,50,&this->font,Color::White,-10,-10);
-		this->playerdamage.setText("11");
+		
+		this->playerdamage.setText("0");
 
 	}
 
@@ -1084,7 +1114,7 @@ public:
 
 	void addEnemy()
 	{
-
+		this->enemyAttacked = 0;
 		for (int i = 0; i < enemynum; i++)
 		{
 			if (!this->enemytexture[i].loadFromFile("Images/monster_on_map/map1/hitotsume.png"))
@@ -1216,6 +1246,7 @@ public:
 		targetstatus->isDie();
 		if (targetstatus->isdead)
 		{	//check enemy remain
+			this->enemydead++;
 			bool isfoundnexttarget = false;
 			//update Item drop
 			this->targetstatus->ItemDrop(&this->playerstatus, targetstatus->droprate, targetstatus->dropnum);
@@ -1244,6 +1275,7 @@ public:
 		if (!isfoundnexttarget)
 		{	this->round++;
 			this->deleteEnemy();
+			this->enemydead = 0;
 			this->isStageturn = true;
 			 //round clear
 
@@ -1251,6 +1283,7 @@ public:
 			if (this->round == this->roundlimit)
 			{
 				 //stage clear
+				this->deleteEnemy();
 				this->stagetext.setText("Stage Clear");
 				this->stagetext.isActive = true;
 				this->stagetext.isTextshowend = false;
@@ -1274,12 +1307,28 @@ public:
 			//enemy turn
 			if (this->isEnemyturn)
 			{
-				for (int i = 0; i < 3; i++)
+				int aviable=0;
+				bool isremain = false;
+				for (int i = 0; i < this->enemynum; i++)
 				{
-					if (!(this->enemystatus[i].isdead))
+					if (!this->enemystatus[i].isdead and !this->enemystatus[i].isAttacked)
 					{
-						this->enemystatus[i].attacking(ptplayerstatus);
-						cout << "enemy " << i << " attack " << "Player Hp remain " << this->playerstatus.hp << endl;
+						aviable = i;
+						isremain = true;
+						break;
+					}
+				}
+				
+					if (!(this->enemystatus[aviable].isdead) and this->playerdamage.isTextshowend and isremain)
+					{
+						this->enemystatus[aviable].isAttacked = true;
+						this->enemystatus[aviable].attacking(ptplayerstatus);
+						//show text
+						this->playerdamage.setText(this->playerdamage.intTostring(this->playerstatus.damageReceived));
+						this->playerdamage.isActive = true;
+						this->playerdamage.isTextshowend = false;
+
+						cout << "enemy " <<aviable << " attack " << "Player Hp remain " << this->playerstatus.hp << endl;
 
 						//check player dead
 						this->playerstatus.isDie();
@@ -1295,15 +1344,18 @@ public:
 							//player daed
 						//	cout << "You are dead" << endl;
 						//	this->endState();
-							break;
+							
 
 						}
-					}
+						this->enemyAttacked++;
+					
 				}
-				if (!this->isStageturn)
+				if (!this->isStageturn and this->enemyAttacked==this->enemynum-this->enemydead)
 				{
 				this->isEnemyturn = false;
 				 this->isPlayerturn = true;
+				 this->enemyAttacked = 0;
+				 
 				}
 				
 			}
@@ -1321,6 +1373,9 @@ public:
 			this->playerstatus.attacking(targetstatus);
 			cout << "enemy " << targetindex << " " << targetstatus->hp << endl;
 			//show damage
+			this->enemytext[targetindex].setText(this->enemytext[targetindex].intTostring(this->enemystatus[targetindex].damageReceived));
+			this->enemytext[targetindex].isActive = true;
+			//this->enemytext[targetindex].isTextshowend = false;
 			
 			//set state
 			this->playerstate = 1;
@@ -1403,7 +1458,13 @@ public:
 			cout << "Click enemy 2" << endl;
 		}
 	}
-	
+	void ResetenemyAttack()
+	{
+		for (int i = 0; i < this->enemynum; i++)
+		{
+			this->enemystatus[i].isAttacked = false;
+		}
+	}
 
 	void updateInput(const float& dt)
 	{		
@@ -1416,6 +1477,8 @@ public:
 				this->UpdateAttack();
 				//update if Item use
 				this->UpdateItemUse();	
+				//reset enemy attack
+				this->ResetenemyAttack();
 			}
 			//update status 
 			
@@ -1530,6 +1593,8 @@ public:
 		//update text
 		//test
 		this->stagetext.update(dt);
+		this->playerdamage.update(dt);
+		for (int i = 0; i < enemynum; i++)if(!this->enemystatus[i].isdead)this->enemytext[i].update(dt);
 
 		//is stage end
 		if (this->stagetext.isTextshowend and this->isBattleend)
