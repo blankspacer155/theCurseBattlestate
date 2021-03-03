@@ -21,28 +21,31 @@ public:
 
 	//variables
 	bool isdead = false;
-	float hp = 400;
-	float max_hp = 200;
-	float att = 110;
-	float def = 10;
-	float stamina = 100;
-	float max_stamina = 100;
+	int hp = 400;
+	int max_hp = 400;
+	int att =50;
+	int def = 10;
+	int stamina = 100;
+	int max_stamina = 100;
 	int lvl = 1;
 	int current_exp = 0;
-	int max_exp = 900;
+	int max_exp = 500;
 
 	int damageReceived;
-	//enemy only
+
 	int droprate = 30;
 	int dropnum = 1;
 	bool isAttacked = false;
-	
 
 	//item
 	int itemnum[4] = { 0 };
 
-
+	
 	//function
+	
+	void UpdateHpbar(const float dt)
+	{
+	}
 	void ItemDrop(Status* recieve, int droprate, int dropnum)
 	{
 		int chance = rand() % 100 + 1;
@@ -64,27 +67,28 @@ public:
 	}
 	void UpdatePlayerlevel()
 	{
-		while (this->current_exp >= max_exp) {
-			current_exp -= max_exp;
+		while (this->current_exp>=this->max_exp) {
+			this->current_exp -= this->max_exp;
 			this->lvl++;
 			max_exp = max_exp + 30 * (this->lvl - 1);
-			this->hp = this->hp + 30 * (this->lvl - 1);
+			this->hp = this->max_hp + 30 * (this->lvl - 1);
 			this->max_hp = this->hp;
-			this->stamina = this->stamina + 20 * (this->lvl - 1);
+			this->stamina = this->max_stamina + 20 * (this->lvl - 1);
 			this->max_stamina = this->stamina;
 			this->att = this->att + 10 * (this->lvl - 1);
 			this->def = this->def + 5 * (this->lvl - 1);
-			if (current_exp < max_exp)
-				cout << "lvl up!!! " << this->lvl;
+			cout << "lvl up!!! " << this->lvl;
 		}
+				
 	}
 
 
 	void InitEnemystatus(int stagelevel)
 	{
-		this->hp = 200.f * stagelevel;
-		this->att = 30.f * stagelevel;
-		this->def = 10.f * stagelevel;
+		this->hp = 200 * stagelevel;
+		this->max_hp = 200 * stagelevel;
+		this->att = 30 * stagelevel;
+		this->def = 10 * stagelevel;
 		this->droprate = 30;
 		this->dropnum = 1;
 	}
@@ -92,7 +96,7 @@ public:
 
 	void attacking(Status* target) {
 		int critrate = rand() % 100 + 1;
-		float damage;
+		int damage;
 
 		if (critrate <= 10) damage = this->att * 2.f - target->def;  //crit
 		else damage = this->att - target->def;              //normal
@@ -100,7 +104,7 @@ public:
 		if (damage <= 0) damage = 0;   //def>atk
 
 		target->hp -= damage;
-		target->damageReceived = (int)damage;
+		target->damageReceived = damage;
 	}
 
 };
@@ -497,7 +501,7 @@ class ShowText
 {
 public:
 	Text text;
-	float textshowtime=1;
+	float textshowtime=0.5;
 	float textclock=0;
 	bool isActive = false;
 	bool isTextshowend=true;
@@ -505,8 +509,22 @@ public:
 	
 	//function
 
+	void AlwaysUpdatetext(string firstword,int stat,const float dt)
+	{
+		this->textclock += dt;
+		
+		string statstr=this->intTostring(stat);
+		this->text.setString(firstword + statstr);
+
+		if (this->textclock >= this->textshowtime)
+		{
+			this->textclock = 0;
+		}
+	}
+
 	string intTostring(int num)
 	{
+		if (num == 0)return"0";
 		int count=0;
 		string text = "";
 		while (num>0)
@@ -560,6 +578,7 @@ public:
 				this->textclock = 0;
 				this->isActive = false;
 				this->isTextshowend = true;
+				this->setText("");
 			}
 		}
 		else
@@ -1044,12 +1063,53 @@ public:
 	bool isBusy = false;
 
 	//text
-	ShowText playerhp,playerstamina,playerdamage,  *enemytext, stagetext;
+	ShowText playerStatText[5], playerdamage, * enemytext, stagetext;
+	string PlayerstatString[5] = { "HP: ","MP: ","LV.: ","ATK: ","DEF: " };
+	int *playerstatusstat[5] = {&this->playerstatus.hp,&this->playerstatus.stamina,&this->playerstatus.lvl,
+									&this->playerstatus.att,&this->playerstatus.def};
 	
 
 
-	//iniilizer function
+	//hp mp bar
+	Sprite playerhpbar,playerstaminabar,*enemyhpbar;
+	Texture hpbarTexture[11],StaminaTexture[11];
+	IntRect barind[11] = { {0,0,800,100},{800,0,800,100} ,{1600,0,800,100} 
+							,{0,100,800,100},{800,100,800,100} ,{1600,100,800,100} 
+							,{0,200,800,100},{800,200,800,100} ,{1600,200,800,100}
+							,{0,300,800,100},{800,300,800,100}  };
+		
 
+
+	//iniilizer function
+	void initBarTexture()
+	{
+		for (int i = 0; i < 11; i++)
+		{
+			if (!this->hpbarTexture[i].loadFromFile("Images/Sprites/HP/Pac HP.png", this->barind[i]))
+			{
+			throw "ERROR::MAIN_MENU_STATE::FAILED_TO_LOAD_BACKGROUND_TEXTURE";
+			}
+			if (!this->StaminaTexture[i].loadFromFile("Images/Sprites/SP/SP PAC.png", this->barind[i]))
+			{
+				throw "ERROR::MAIN_MENU_STATE::FAILED_TO_LOAD_BACKGROUND_TEXTURE";
+			}
+		}
+		
+	}
+	void createBar(Entity *targetentity,Sprite *targetbar,float x, float y, float scalex, float scaley,char type)
+	{
+		if (type == 'H') {
+			targetbar->setTexture(this->hpbarTexture[0]);
+		}
+		//S for Stamina
+		else
+		{
+			targetbar->setTexture(this->StaminaTexture[0]);
+		}
+		targetbar->setScale(scalex, scaley);
+		if (!targetentity == NULL)targetbar->setPosition(targetentity->getPosition().x + x, targetentity->getPosition().y + y);
+		else targetbar->setPosition(x,y);
+	}
 	void initItemwindow()
 	{
 		if (!this->ItemwindowTex.loadFromFile("Images/Itemwindow.jpg"))
@@ -1089,6 +1149,15 @@ public:
 		this->playerdamage.setBase(&this->player,50,&this->font,Color::White,-10,-10);
 		
 		this->playerdamage.setText("0");
+		//set player stat text
+		this->playerStatText[0].setBase(NULL,40,&this->font,Color::Black,1120,830);
+		this->playerStatText[1].setBase(NULL, 40, &this->font, Color::Black, 1120, 880);
+		this->playerStatText[2].setBase(NULL, 40, &this->font, Color::Black, 1500, 830);
+		this->playerStatText[3].setBase(NULL, 40, &this->font, Color::Black, 1500, 880);
+		this->playerStatText[4].setBase(NULL, 40, &this->font, Color::Black, 1500, 930);
+		//hp bar Stamina bar
+		this->createBar(NULL,&this->playerhpbar,1100,860,0.5,0.5,'H');
+		this->createBar(NULL, &this->playerstaminabar, 1000, 910, 0.5, 0.5, 'S');
 
 	}
 
@@ -1097,6 +1166,7 @@ public:
 		this->enemystatus = new Status[enemynum];
 		this->enemy = new Entity[enemynum];
 		this->enemytext = new ShowText[enemynum];
+		this->enemyhpbar = new Sprite[enemynum];
 		this->addEnemy();
 	}
 	void deleteEnemy()
@@ -1105,9 +1175,11 @@ public:
 		delete[] this->enemy;
 		delete[] this->enemystatus;
 		delete[] this->enemytext;
+		delete[] this->enemyhpbar;
 		this->enemystatus = new Status[enemynum];
 		this->enemy = new Entity[enemynum];
 		this->enemytext = new ShowText[enemynum];
+		this->enemyhpbar = new Sprite[enemynum];
 
 		
 	}
@@ -1130,6 +1202,9 @@ public:
 			//init enemy text
 			this->enemytext[i].setBase(&this->enemy[i],  50, &this->font, Color::White, -20, -10);
 			this->enemytext[i].setText("99");
+			//set enemy hp bar
+			this->createBar(&this->enemy[i],&this->enemyhpbar[i],25,-10,0.25,0.25,'H');
+
 		}
 
 		//set default target
@@ -1149,7 +1224,8 @@ public:
 	
 	void initStagetext()
 	{
-		this->stagetext.setBase(NULL, 100, &this->font, Color::White, 500, 500);
+		this->stagetext.setBase(NULL, 200, &this->font, Color::White, 600, 400);
+		this->stagetext.textshowtime = 1;
 	
 
 	}
@@ -1221,6 +1297,7 @@ public:
 		: State(window, states)
 	{
 		this->initVariables(Maxround, Stagelevel, Isbossstage);
+		this->initBarTexture();
 		this->initPlayer();
 		this->initEnemy();
 		this->initBackground();
@@ -1228,6 +1305,7 @@ public:
 		this->initButtons();
 		this->initItemwindow();
 		this->initStagetext();
+		
 	}
 
 	virtual ~BattleState()
@@ -1236,6 +1314,7 @@ public:
 		delete[] this->enemy;
 		delete[] this->enemystatus;
 		delete[] this->enemytext;
+		delete[] this->enemyhpbar;
 	}
 
 
@@ -1268,8 +1347,16 @@ public:
 			}
 			//update player status
 			
-			this->playerstatus.current_exp += 150;
-			this->playerstatus.UpdatePlayerlevel();
+			this->playerstatus.current_exp += 400;
+			
+			//check if player level up
+			if(this->playerstatus.current_exp>=this->playerstatus.max_exp)
+			{
+				this->playerstatus.UpdatePlayerlevel();
+				this->playerdamage.setText("LEVEL UP!");
+				this->playerdamage.isActive = true;
+				this->playerdamage.isTextshowend = false;
+			}
 			cout << this->playerstatus.current_exp << " " << this->playerstatus.lvl << " " << this->playerstatus.att << endl;
 		// check if kill all
 		if (!isfoundnexttarget)
@@ -1484,10 +1571,10 @@ public:
 			
 			if(!this->isStageturn)this->UpdateStatus();
 			
-			if (this->isStageturn)
+			if (this->isStageturn )
 			{
 				
-					if (this->stagetext.isTextshowend)
+					if (this->stagetext.isTextshowend )
 					{
 						this->addEnemy();
 						this->isPlayerturn = true;
@@ -1574,6 +1661,26 @@ public:
 			break;
 		}
 	}
+	void UpdateBar(Sprite *target,float currentnum,float maxnum,char type)
+	{
+		float percent = currentnum / maxnum * 100;
+		int ind;
+		if (percent <= 0)ind = 10;
+		else if (percent <= 10)ind = 9;
+		else if (percent <= 20)ind = 8;
+		else if (percent <= 30)ind = 7;
+		else if (percent <= 40)ind = 6;
+		else if (percent <= 50)ind = 5;
+		else if (percent <= 60)ind = 4;
+		else if (percent <= 70)ind = 3;
+		else if (percent <= 80)ind = 2;
+		else if (percent < 100)ind = 1;
+		else  ind = 0;
+
+		if(type=='H')target->setTexture(this->hpbarTexture[ind]);
+		else target->setTexture(this->StaminaTexture[ind]);
+	}
+	
 	void update(const float& dt)
 	{
 		//update time
@@ -1591,11 +1698,19 @@ public:
 		for (int i = 0; i < enemynum; i++)this->enemy[i].update(dt);
 
 		//update text
+		for (int i = 0; i < 5; i++)
+		{
+		this->playerStatText[i].AlwaysUpdatetext(this->PlayerstatString[i],*this->playerstatusstat[i],dt);
+		}
+		//update bar
+		this->UpdateBar(&this->playerhpbar,this->playerstatus.hp,this->playerstatus.max_hp,'H');
+		this->UpdateBar(&this->playerstaminabar, this->playerstatus.stamina, this->playerstatus.max_stamina, 'S');
+		for(int i=0;i<enemynum;i++)this->UpdateBar(&this->enemyhpbar[i], this->enemystatus[i].hp, this->enemystatus[i].max_hp, 'H');
 		//test
 		this->stagetext.update(dt);
 		this->playerdamage.update(dt);
-		for (int i = 0; i < enemynum; i++)if(!this->enemystatus[i].isdead)this->enemytext[i].update(dt);
-
+		for (int i = 0; i < enemynum; i++)if(!this->enemystatus[i].isdead or this->enemytext[i].isActive)this->enemytext[i].update(dt);
+			
 		//is stage end
 		if (this->stagetext.isTextshowend and this->isBattleend)
 		{
@@ -1625,14 +1740,38 @@ public:
 		if (this->stagetext.isTextshowend)this->player.render(*target);
 
 		//render enemy zone
-		for (int i = 0; i < enemynum; i++)if(!this->enemystatus[i].isdead and this->stagetext.isTextshowend)this->enemy[i].render(*target);
+		for (int i = 0; i < enemynum; i++)
+		{
+			if (!this->enemystatus[i].isdead and this->stagetext.isTextshowend)
+			{
+				this->enemy[i].render(*target);
+				
+			}
+			if (!this->enemystatus[i].isdead or this->enemytext[i].isActive)
+			{
+				target->draw(this->enemytext[i].text);
+				target->draw(this->enemyhpbar[i]);
+				
+			}
+			
+		}
 		//enemy target cursor
 		if(this->stagetext.isTextshowend)this->targetCursor.render(*target);
 		//render stage text
 		target->draw(this->stagetext.text);
 		//render other text
 		target->draw(this->playerdamage.text);
-		for (int i = 0; i < enemynum; i++)if (!this->enemystatus[i].isdead)target->draw(this->enemytext[i].text);
+		
+		
+
+		for (int i = 0; i < 5; i++)
+		{
+			target->draw(this->playerStatText[i].text);
+		}
+		//render player bar
+		target->draw(this->playerhpbar);
+		target->draw(this->playerstaminabar);
+
 
 		//render item window
 		if (this->isItemwindowActive)target->draw(this->Itemwindow);
@@ -1640,7 +1779,7 @@ public:
 		this->renderButtons(target);
 
 		//show mouse position zone
-		/*Text mouseText;
+		Text mouseText;
 		mouseText.setPosition(this->mousePosView.x, this->mousePosView.y - 20);
 		mouseText.setFont(this->font);
 		mouseText.setCharacterSize(20);
@@ -1648,7 +1787,7 @@ public:
 		ss << this->mousePosView.x << " " << this->mousePosView.y;
 		mouseText.setString(ss.str());
 
-		target->draw(mouseText);*/
+		target->draw(mouseText);
 	}
 };
 
