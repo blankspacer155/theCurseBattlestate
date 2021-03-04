@@ -23,7 +23,7 @@ public:
 	bool isdead = false;
 	int hp = 400;
 	int max_hp = 400;
-	int att =50;
+	int att =150;
 	int def = 10;
 	int stamina = 100;
 	int max_stamina = 100;
@@ -98,7 +98,7 @@ public:
 		int critrate = rand() % 100 + 1;
 		int damage;
 
-		if (critrate <= 10) damage = this->att * 2.f - target->def;  //crit
+		if (critrate <= 10) damage = this->att * 2 - target->def;  //crit
 		else damage = this->att - target->def;              //normal
 
 		if (damage <= 0) damage = 0;   //def>atk
@@ -456,6 +456,10 @@ public:
 	}
 
 	//Functions
+	void setColor(Color color)
+	{
+		this->sprite.setColor(color);
+	}
 	void setCursorPosition(const Entity& target)
 	{
 		this->sprite.setPosition(
@@ -1030,12 +1034,12 @@ public:
 	//entity player&ene
 	Entity player;
 	Entity* enemy;
-	int enemynum = 3;     //enemy number
-	Texture playertexture, enemytexture[3];
-	float enemyposition[3][2] = { {1000.f,200.f},{1000.f,400.f},{1000.f,600.f} };
+	int enemynum = 2;     //enemy number
+	Texture playertexture[3], enemytexture[3];  //idle and attacking
+	float enemyposition[2] =  {1000.f,100.f};
 
-	int playerstate;//0idle 1attack 2item 3skill 4run
-	
+	int playerstate=0;//0idle 1attack 2get attack 
+	int *enemystate;//0 idle 1attack 2get attack
 	//round
 	int round = 0;
 	int roundlimit;
@@ -1063,7 +1067,7 @@ public:
 	bool isBusy = false;
 
 	//text
-	ShowText playerStatText[5], playerdamage, * enemytext, stagetext;
+	ShowText playerStatText[5], playerdamage, * enemytext, stagetext,Roundtext;
 	string PlayerstatString[5] = { "HP: ","MP: ","LV.: ","ATK: ","DEF: " };
 	int *playerstatusstat[5] = {&this->playerstatus.hp,&this->playerstatus.stamina,&this->playerstatus.lvl,
 									&this->playerstatus.att,&this->playerstatus.def};
@@ -1123,6 +1127,23 @@ public:
 
 		this->isItemwindowActive = false;
 	}
+	void initPlayerEnemyTexture()
+	{
+		int playery = 125,enemyx=0;
+		for (int i = 0; i < 3; i++)
+		{
+			if (!this->playertexture[i].loadFromFile("Images/Sprites/Player/test.png",IntRect(0,playery,125,125)))
+			{
+			throw "ERROR::MAIN_MENU_STATE::FAILED_TO_LOAD_BACKGROUND_TEXTURE";
+			}
+			playery += 125;
+			if (!this->enemytexture[i].loadFromFile("Images/monster_on_map/map1/testenemy.png",IntRect(enemyx,0,120,120)))
+			{
+			throw "ERROR::MAIN_MENU_STATE::FAILED_TO_LOAD_BACKGROUND_TEXTURE";
+			}
+			enemyx += 120;
+		}
+	}
 	void initPlayer()
 	{
 		//turn
@@ -1134,21 +1155,15 @@ public:
 
 		this->playerstatus = *temp::TempStatus;
 		ptplayerstatus = &playerstatus;
-
-
-		if (!this->playertexture.loadFromFile("Images/Sprites/Player/test.png"))
-		{
-			throw "ERROR::MAIN_MENU_STATE::FAILED_TO_LOAD_BACKGROUND_TEXTURE";
-		}
+		//set position
 		this->player.setPosition(400.f, 400.f);
-		this->player.setTexture(this->playertexture);
-		this->player.animationComponent->addAnimation("IDLE",0.5f,0,0,0,0,125,125);
-		this->player.animationComponent->addAnimation("ATTACK", 0.5f, 0, 2, 3, 2, 125, 125);
+		this->player.setTexture(this->playertexture[0]);
+
 		this->playerstate = 0;//set idle
 
 		this->playerdamage.setBase(&this->player,50,&this->font,Color::White,-10,-10);
-		
 		this->playerdamage.setText("0");
+		this->playerdamage.textshowtime = 1;
 		//set player stat text
 		this->playerStatText[0].setBase(NULL,40,&this->font,Color::Black,1120,830);
 		this->playerStatText[1].setBase(NULL, 40, &this->font, Color::Black, 1120, 880);
@@ -1167,19 +1182,22 @@ public:
 		this->enemy = new Entity[enemynum];
 		this->enemytext = new ShowText[enemynum];
 		this->enemyhpbar = new Sprite[enemynum];
+		this->enemystate = new int[enemynum];
 		this->addEnemy();
 	}
 	void deleteEnemy()
 	{
-		for (int i = 0; i < 3; i++)this->enemyposition[i][0] -= 10;   //change location for test
+		
 		delete[] this->enemy;
 		delete[] this->enemystatus;
 		delete[] this->enemytext;
 		delete[] this->enemyhpbar;
+		delete[] this->enemystate;
 		this->enemystatus = new Status[enemynum];
 		this->enemy = new Entity[enemynum];
 		this->enemytext = new ShowText[enemynum];
 		this->enemyhpbar = new Sprite[enemynum];
+		this->enemystate = new int[enemynum];
 
 		
 	}
@@ -1187,15 +1205,14 @@ public:
 	void addEnemy()
 	{
 		this->enemyAttacked = 0;
+		
+		float tempposition=enemyposition[1];
 		for (int i = 0; i < enemynum; i++)
 		{
-			if (!this->enemytexture[i].loadFromFile("Images/monster_on_map/map1/hitotsume.png"))
-			{
-				throw "ERROR::MAIN_MENU_STATE::FAILED_TO_LOAD_BACKGROUND_TEXTURE";
-			}
-
-			this->enemy[i].setPosition(this->enemyposition[i][0], this->enemyposition[i][1]);
-			this->enemy[i].setTexture(this->enemytexture[i]);
+			this->enemy[i].setPosition(this->enemyposition[0], tempposition+=200.f);
+			this->enemy[i].setTexture(this->enemytexture[0]);
+			//set state
+			this->enemystate[i] = 0; ///idle
 
 			//init enemystatus
 			this->enemystatus[i].InitEnemystatus(this->stagelevel);
@@ -1217,8 +1234,6 @@ public:
 		}
 		this->targetCursor.setTexture(this->targetCursortex);
 		this->targetCursor.setCursorPosition(*this->targetentity);
-		
-		
 
 	}
 	
@@ -1226,7 +1241,7 @@ public:
 	{
 		this->stagetext.setBase(NULL, 200, &this->font, Color::White, 600, 400);
 		this->stagetext.textshowtime = 1;
-	
+		this->Roundtext.setBase(NULL, 100, &this->font, Color::White, 600, 50);
 
 	}
 	void initVariables(int round, int lvl, bool isboss)
@@ -1298,6 +1313,7 @@ public:
 	{
 		this->initVariables(Maxround, Stagelevel, Isbossstage);
 		this->initBarTexture();
+		this->initPlayerEnemyTexture();
 		this->initPlayer();
 		this->initEnemy();
 		this->initBackground();
@@ -1315,6 +1331,7 @@ public:
 		delete[] this->enemystatus;
 		delete[] this->enemytext;
 		delete[] this->enemyhpbar;
+		delete[] this->enemystate;
 	}
 
 
@@ -1370,7 +1387,7 @@ public:
 			if (this->round == this->roundlimit)
 			{
 				 //stage clear
-				this->deleteEnemy();
+				
 				this->stagetext.setText("Stage Clear");
 				this->stagetext.isActive = true;
 				this->stagetext.isTextshowend = false;
@@ -1390,7 +1407,7 @@ public:
 	}
 	void UpdateEnemyAttack()
 	{
-		if (!this->isBusy) {
+		//if (!this->isBusy) {
 			//enemy turn
 			if (this->isEnemyturn)
 			{
@@ -1406,7 +1423,7 @@ public:
 					}
 				}
 				
-					if (!(this->enemystatus[aviable].isdead) and this->playerdamage.isTextshowend and isremain)
+					if (!(this->enemystatus[aviable].isdead)  and this->playerdamage.isTextshowend and isremain)
 					{
 						this->enemystatus[aviable].isAttacked = true;
 						this->enemystatus[aviable].attacking(ptplayerstatus);
@@ -1414,6 +1431,10 @@ public:
 						this->playerdamage.setText(this->playerdamage.intTostring(this->playerstatus.damageReceived));
 						this->playerdamage.isActive = true;
 						this->playerdamage.isTextshowend = false;
+						//set state
+						this->enemystate[aviable] = 1;
+						this->playerstate = 2;
+						this->isBusy = true;
 
 						cout << "enemy " <<aviable << " attack " << "Player Hp remain " << this->playerstatus.hp << endl;
 
@@ -1429,8 +1450,6 @@ public:
 							this->isPlayerturn = false;
 							this->isBattleend = true;
 							//player daed
-						//	cout << "You are dead" << endl;
-						//	this->endState();
 							
 
 						}
@@ -1446,32 +1465,35 @@ public:
 				}
 				
 			}
-		}
+		//}
 	}
 	void UpdateAttack()
 	{
 		//Attack button only
 		//Update player input  oon turn
-		if (this->Mainbuttons["ATTACK"]->isPressed())
-		{
-			this->isBusy = true;
-			//attack
-			auto targetindex = targetstatus - &enemystatus[0];
-			this->playerstatus.attacking(targetstatus);
-			cout << "enemy " << targetindex << " " << targetstatus->hp << endl;
-			//show damage
-			this->enemytext[targetindex].setText(this->enemytext[targetindex].intTostring(this->enemystatus[targetindex].damageReceived));
-			this->enemytext[targetindex].isActive = true;
-			//this->enemytext[targetindex].isTextshowend = false;
-			
-			//set state
-			this->playerstate = 1;
-			//set enemy can attack
-			this->isEnemyturn = true;
-			//change turn to enemy 
-			this->isPlayerturn = false;
-		}
-		//skill zone
+		
+			if (this->Mainbuttons["ATTACK"]->isPressed())
+			{
+
+				//attack
+				auto targetindex = targetstatus - &enemystatus[0];
+				this->playerstatus.attacking(targetstatus);
+				cout << "enemy " << targetindex << " " << targetstatus->hp << endl;
+				//show damage
+				this->enemytext[targetindex].setText(this->enemytext[targetindex].intTostring(this->enemystatus[targetindex].damageReceived));
+				this->enemytext[targetindex].isActive = true;
+				//this->enemytext[targetindex].isTextshowend = false;
+
+				//set state
+				this->playerstate = 1;
+				this->enemystate[targetindex] = 2;
+				this->isBusy = true;
+				//set enemy can attack
+				this->isEnemyturn = true;
+				//change turn to enemy 
+				this->isPlayerturn = false;
+			}
+			//skill zone
 
 		
 	}
@@ -1558,7 +1580,7 @@ public:
 			//player set target by click 
 			this->PlayerSetTarget();
 			
-			if (this->isPlayerturn and this->stagetext.isTextshowend)
+			if (this->isPlayerturn and this->stagetext.isTextshowend and !this->isBusy)
 			{
 				//update attack zone
 				this->UpdateAttack();
@@ -1569,23 +1591,26 @@ public:
 			}
 			//update status 
 			
-			if(!this->isStageturn)this->UpdateStatus();
+			if(!this->isStageturn )this->UpdateStatus();
 			
 			if (this->isStageturn )
 			{
 				
 					if (this->stagetext.isTextshowend )
 					{
-						this->addEnemy();
-						this->isPlayerturn = true;
-						this->isStageturn = false;
+						
+							this->addEnemy();
+							this->isPlayerturn = true;
+							this->isStageturn = false;
+							this->isBusy = false;
+						
 					}
 					this->isEnemyturn = false;
 				
 				
 			}
 			
-			 if(this->isEnemyturn and this->stagetext.isTextshowend)
+			 if(this->isEnemyturn and this->stagetext.isTextshowend and !this->isBusy)
 			{
 				this->Enemyturn();
 			}
@@ -1644,22 +1669,41 @@ public:
 			return false;
 		}
 	}
-	void updateplayer(const float &dt)
+	
+	void UpdatePlayerEnemy(const float& dt)
 	{
-		switch(this->playerstate)
+		if (!this->isBusy)this->Actionclock = 0;
+		
+		this->player.setTexture(this->playertexture[0]);
+		for (int i = 0; i < enemynum; i++)
 		{
-		case 0:this->player.animationComponent->play("IDLE", dt);
-			this->player.animationComponent->reset();
-			this->Actionclock = 0;
+		
+			switch (enemystate[i])
+		{
+		case 0:
+			this->enemy[i].setTexture(this->enemytexture[0]);
 			break;
-		case 1:this->player.animationComponent->play("ATTACK", dt);		
+		case 1:
+			this->enemy[i].setTexture(this->enemytexture[1]);
+			this->player.setTexture(this->playertexture[2]);
 			if (this->isEndaction(0.5))
 			{
+				this->enemystate[i] = 0;
 				this->playerstate = 0;
-				this->player.animationComponent->reset();
+			}
+			break;
+		case 2:
+			this->enemy[i].setTexture(this->enemytexture[2]);
+			this->player.setTexture(this->playertexture[1]);
+			if (this->isEndaction(0.5))
+			{
+				this->enemystate[i] = 0;
+				this->playerstate = 0;
 			}
 			break;
 		}
+		}
+		
 	}
 	void UpdateBar(Sprite *target,float currentnum,float maxnum,char type)
 	{
@@ -1692,27 +1736,29 @@ public:
 		//player update zone
 		this->updateInput(dt);
 
-		this->updateplayer(dt);
+		//this->updateplayer(dt);
+		this->UpdatePlayerEnemy(dt);
+		
 
-		//enemy update zome
-		for (int i = 0; i < enemynum; i++)this->enemy[i].update(dt);
-
-		//update text
+		//update player stat text
 		for (int i = 0; i < 5; i++)
 		{
 		this->playerStatText[i].AlwaysUpdatetext(this->PlayerstatString[i],*this->playerstatusstat[i],dt);
 		}
+		//update round num text
+		this->Roundtext.AlwaysUpdatetext("Round ", (this->round)+1, dt);
+
 		//update bar
 		this->UpdateBar(&this->playerhpbar,this->playerstatus.hp,this->playerstatus.max_hp,'H');
 		this->UpdateBar(&this->playerstaminabar, this->playerstatus.stamina, this->playerstatus.max_stamina, 'S');
 		for(int i=0;i<enemynum;i++)this->UpdateBar(&this->enemyhpbar[i], this->enemystatus[i].hp, this->enemystatus[i].max_hp, 'H');
-		//test
+		// text enemy player stage update 
 		this->stagetext.update(dt);
 		this->playerdamage.update(dt);
 		for (int i = 0; i < enemynum; i++)if(!this->enemystatus[i].isdead or this->enemytext[i].isActive)this->enemytext[i].update(dt);
 			
 		//is stage end
-		if (this->stagetext.isTextshowend and this->isBattleend)
+		if (this->stagetext.isTextshowend and this->isBattleend )
 		{
 			this->endState();
 		}
@@ -1747,7 +1793,7 @@ public:
 				this->enemy[i].render(*target);
 				
 			}
-			if (!this->enemystatus[i].isdead or this->enemytext[i].isActive)
+			if ((!this->enemystatus[i].isdead or this->enemytext[i].isActive)and this->stagetext.isTextshowend)
 			{
 				target->draw(this->enemytext[i].text);
 				target->draw(this->enemyhpbar[i]);
@@ -1759,6 +1805,7 @@ public:
 		if(this->stagetext.isTextshowend)this->targetCursor.render(*target);
 		//render stage text
 		target->draw(this->stagetext.text);
+		if (this->stagetext.isTextshowend)target->draw(this->Roundtext.text);
 		//render other text
 		target->draw(this->playerdamage.text);
 		
