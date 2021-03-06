@@ -1219,26 +1219,26 @@ public:
 
 	void initEnemy()
 	{
-		this->enemystatus = new Status[enemynum];
-		this->enemy = new Entity[enemynum];
-		this->enemytext = new ShowText[enemynum];
-		this->enemyhpbar = new Sprite[enemynum];
-		this->enemystate = new int[enemynum];
+		enemystatus = new Status[enemynum];
+		enemy = new Entity[enemynum];
+		enemytext = new ShowText[enemynum];
+		enemyhpbar = new Sprite[enemynum];
+		enemystate = new int[enemynum];
 		this->addEnemy();
 	}
 	void deleteEnemy()
 	{
 		
-		delete[] this->enemy;
-		delete[] this->enemystatus;
-		delete[] this->enemytext;
-		delete[] this->enemyhpbar;
-		delete[] this->enemystate;
-		this->enemystatus = new Status[enemynum];
-		this->enemy = new Entity[enemynum];
-		this->enemytext = new ShowText[enemynum];
-		this->enemyhpbar = new Sprite[enemynum];
-		this->enemystate = new int[enemynum];
+		delete[] enemy;
+		delete[] enemystatus;
+		delete[] enemytext;
+		delete[] enemyhpbar;
+		delete[] enemystate;
+		enemystatus = new Status[enemynum];
+		enemy = new Entity[enemynum];
+		enemytext = new ShowText[enemynum];
+		enemyhpbar = new Sprite[enemynum];
+		enemystate = new int[enemynum];
 
 		
 	}
@@ -1441,7 +1441,7 @@ public:
 		if (enemydead == enemynum and !isenemytextactive)
 		{
 			this->round++;
-			this->deleteEnemy();
+			//this->deleteEnemy();
 			this->enemydead = 0;
 			this->isStageturn = true;
 			//round clear
@@ -1797,7 +1797,7 @@ public:
 				
 					if (this->stagetext.isTextshowend )
 					{
-						
+							this->deleteEnemy();
 							this->addEnemy();
 							this->isPlayerturn = true;
 							this->isStageturn = false;
@@ -2012,42 +2012,42 @@ public:
 		//update environment zone
 		target->draw(this->background);
 
-		//render player zone
-		if (this->stagetext.isTextshowend)this->player.render(*target);
-	
-		//render enemy zone
-		for (int i = 0; i < enemynum; i++)
-		{
-			if (!this->enemystatus[i].isdead and this->stagetext.isTextshowend)
+		if (!isBattleend) {
+			//render player zone
+			if (this->stagetext.isTextshowend)this->player.render(*target);
+			if (playerdamage.isActive)target->draw(this->playerdamage.text);
+			//playerstat
+			for (int i = 0; i < 5; i++)
 			{
-				this->enemy[i].render(*target);
-				
+				target->draw(this->playerStatText[i].text);
 			}
-			if ((!this->enemystatus[i].isdead or this->enemytext[i].isActive)and this->stagetext.isTextshowend)
+			//render player bar
+			target->draw(this->playerhpbar);
+			target->draw(this->playerstaminabar);
+
+			//render enemy zone
+			for (int i = 0; i < enemynum; i++)
 			{
-				target->draw(this->enemytext[i].text);
-				target->draw(this->enemyhpbar[i]);
-				
+				if (!this->enemystatus[i].isdead and this->stagetext.isTextshowend)
+				{
+					this->enemy[i].render(*target);
+
+				}
+				if ((!this->enemystatus[i].isdead or this->enemytext[i].isActive) and this->stagetext.isTextshowend)
+				{
+					target->draw(this->enemytext[i].text);
+					target->draw(this->enemyhpbar[i]);
+
+				}
+
 			}
-			
+			//enemy target cursor
+			if (this->stagetext.isTextshowend)this->targetCursor.render(*target);
 		}
-		//enemy target cursor
-		if(this->stagetext.isTextshowend)this->targetCursor.render(*target);
+		
 		//render stage text
 		target->draw(this->stagetext.text);
 		if (this->stagetext.isTextshowend)target->draw(this->Roundtext.text);
-		//render other text
-		if(playerdamage.isActive)target->draw(this->playerdamage.text);
-		
-		
-
-		for (int i = 0; i < 5; i++)
-		{
-			target->draw(this->playerStatText[i].text);
-		}
-		//render player bar
-		target->draw(this->playerhpbar);
-		target->draw(this->playerstaminabar);
 
 
 		//render item window
