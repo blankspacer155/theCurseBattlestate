@@ -21,8 +21,8 @@ public:
 
 	//variables
 	bool isdead = false;
-	int hp = 400;
-	int max_hp = 400;
+	int hp = 600;
+	int max_hp = 600;
 	int att =150;
 	int def = 10;
 	int stamina = 100;
@@ -33,13 +33,16 @@ public:
 
 	int damageReceived;
 
-	int droprate = 30;
+	//only enemy
+	int droprate = 100;
 	int dropnum = 1;
 	bool isAttacked = false;
 
 	//item
 	int itemnum[4] = { 0 };
-
+	int atkchange= 0,defchange=0;
+	//skill
+	int skillcost[2] = {20,50};
 	
 	//function
 	
@@ -75,8 +78,8 @@ public:
 			this->max_hp = this->hp;
 			this->stamina = this->max_stamina + 20 * (this->lvl - 1);
 			this->max_stamina = this->stamina;
-			this->att = this->att + 10 * (this->lvl - 1);
-			this->def = this->def + 5 * (this->lvl - 1);
+			this->att +=  10 * (this->lvl - 1);
+			this->def += 5 * (this->lvl - 1);
 			cout << "lvl up!!! " << this->lvl;
 		}
 				
@@ -89,10 +92,17 @@ public:
 		this->max_hp = 200 * stagelevel;
 		this->att = 30 * stagelevel;
 		this->def = 10 * stagelevel;
-		this->droprate = 30;
+		this->droprate = 100;
 		this->dropnum = 1;
 	}
 
+	void skillAttack(Status* target, float multiplier)
+	{
+		int tempatt = this->att;
+		this->att = this -> att * multiplier;
+		this->attacking(target);
+		this->att = tempatt;
+	}
 
 	void attacking(Status* target) {
 		int critrate = rand() % 100 + 1;
@@ -1029,7 +1039,7 @@ public:
 
 
 	//button
-	map<string, Button*> Mainbuttons, Itembuttons, * currentbutton;
+	map<string, Button*> Mainbuttons, Itembuttons,Skillbuttons, * currentbutton;
 
 	//entity player&ene
 	Entity player;
@@ -1055,11 +1065,21 @@ public:
 	bool isEnemyturn;
 	bool isStageturn;
 	bool isBattleend=false;
+	bool isItemUsed = false;
+	bool isSkillUsed = false;
 	
 	//item window
 	RectangleShape Itemwindow;
-	Texture ItemwindowTex;
+	Texture ItemwindowTexture;
 	bool isItemwindowActive;
+	ShowText Itemstatus[4];
+
+	//skill window 
+	RectangleShape Skillwindow;
+	Texture SkillwindowTexture;
+	bool isSkillwindowActive;
+	ShowText Skillstatus[2];
+
 
 	//time
 	double Actionclock=0;
@@ -1116,16 +1136,37 @@ public:
 	}
 	void initItemwindow()
 	{
-		if (!this->ItemwindowTex.loadFromFile("Images/Itemwindow.jpg"))
+		if (!this->ItemwindowTexture.loadFromFile("Images/Itemwindow.jpg"))
 		{
 			throw "ERROR::MAIN_MENU_STATE::FAILED_TO_LOAD_BACKGROUND_TEXTURE";
 		}
 
 		this->Itemwindow.setSize(Vector2f(300.,600.));
-		this->Itemwindow.setTexture(&this->ItemwindowTex);
+		this->Itemwindow.setTexture(&this->ItemwindowTexture);
 		this->Itemwindow.setPosition(Vector2f(700.f, 100.f));
 
 		this->isItemwindowActive = false;
+		//set item remain
+		this->Itemstatus[0].setBase(NULL,30,&this->font,Color::White,900,100);
+		this->Itemstatus[1].setBase(NULL, 30, &this->font, Color::White, 900, 200);
+		this->Itemstatus[2].setBase(NULL, 30, &this->font, Color::White, 900, 300);
+		this->Itemstatus[3].setBase(NULL, 30, &this->font, Color::White, 900,400);
+	}
+	void initSkillwindow()
+	{
+		if (!this->SkillwindowTexture.loadFromFile("Images/Skillwindow.png"))
+		{
+			throw "ERROR::MAIN_MENU_STATE::FAILED_TO_LOAD_BACKGROUND_TEXTURE";
+		}
+		
+		this->Skillwindow.setSize(Vector2f(300., 600.));
+		this->Skillwindow.setTexture(&this->SkillwindowTexture);
+		this->Skillwindow.setPosition(Vector2f(700.f, 100.f));
+		//set skill mp use
+		this->Skillstatus[0].setBase(NULL, 30, &this->font, Color::White,700, 300);
+		this->Skillstatus[1].setBase(NULL, 30, &this->font, Color::White, 700, 400);
+
+		this->isSkillwindowActive = false;
 	}
 	void initPlayerEnemyTexture()
 	{
@@ -1217,7 +1258,7 @@ public:
 			//init enemystatus
 			this->enemystatus[i].InitEnemystatus(this->stagelevel);
 			//init enemy text
-			this->enemytext[i].setBase(&this->enemy[i],  50, &this->font, Color::White, -20, -10);
+			this->enemytext[i].setBase(&this->enemy[i],  50, &this->font, Color::White, -50, -10);
 			this->enemytext[i].setText("99");
 			//set enemy hp bar
 			this->createBar(&this->enemy[i],&this->enemyhpbar[i],25,-10,0.25,0.25,'H');
@@ -1292,6 +1333,13 @@ public:
 		this->Itembuttons["EXITITEM"] = new Button(1000, 500, 150, 100, &this->font, "exit", 50, Color(70, 70, 70, 200), Color(250, 250, 250, 250), Color(20, 20, 20, 50),
 			Color(70, 70, 70, 0), Color(150, 150, 150, 0), Color(20, 20, 20, 0));
 
+		this->Skillbuttons["SKILL1"] = new Button(800, 300, 150, 100, &this->font, "skill1", 50, Color(70, 70, 70, 200), Color(250, 250, 250, 250), Color(20, 20, 20, 50),
+			Color(70, 70, 70, 0), Color(150, 150, 150, 0), Color(20, 20, 20, 0));
+		this->Skillbuttons["SKILL2"] = new Button(800, 400, 150, 100, &this->font, "skill2", 50, Color(70, 70, 70, 200), Color(250, 250, 250, 250), Color(20, 20, 20, 50),
+			Color(70, 70, 70, 0), Color(150, 150, 150, 0), Color(20, 20, 20, 0));
+		this->Skillbuttons["EXITSKILL"] = new Button(800, 500, 150, 100, &this->font, "exit", 50, Color(70, 70, 70, 200), Color(250, 250, 250, 250), Color(20, 20, 20, 50),
+			Color(70, 70, 70, 0), Color(150, 150, 150, 0), Color(20, 20, 20, 0));
+
 		//init curerent button
 		currentbutton = &this->Mainbuttons;
 	}
@@ -1302,6 +1350,10 @@ public:
 			delete it->second;
 		}
 		for (auto it = this->Itembuttons.begin(); it != this->Itembuttons.end(); ++it)
+		{
+			delete it->second;
+		}
+		for (auto it = this->Skillbuttons.begin(); it != this->Skillbuttons.end(); ++it)
 		{
 			delete it->second;
 		}
@@ -1320,6 +1372,7 @@ public:
 		this->initFonts();
 		this->initButtons();
 		this->initItemwindow();
+		this->initSkillwindow();
 		this->initStagetext();
 		
 	}
@@ -1338,72 +1391,83 @@ public:
 	//Functions
 	void UpdateStatus()
 	{	
-		
-		targetstatus->isDie();
-		if (targetstatus->isdead)
-		{	//check enemy remain
-			this->enemydead++;
-			bool isfoundnexttarget = false;
-			//update Item drop
-			this->targetstatus->ItemDrop(&this->playerstatus, targetstatus->droprate, targetstatus->dropnum);
-			cout << "Item now " << this->playerstatus.itemnum[0] << this->playerstatus.itemnum[1]
-				<< this->playerstatus.itemnum[2] << this->playerstatus.itemnum[3] << endl;
+		for (int ind = 0; ind < enemynum; ind++)
+		{
+			if (!enemystatus[ind].isdead)enemystatus[ind].isDie();
+			else continue;
 
-			//set auto next target
-			
-			for (int i = 0; i < enemynum; i++)
-			{
-				if (this->enemystatus[i].isdead == false)
+			if (enemystatus[ind].isdead)
+			{	//check enemy remain
+				this->enemydead++;
+
+				//update Item drop
+				this->enemystatus[ind].ItemDrop(&this->playerstatus, enemystatus[ind].droprate, enemystatus[ind].dropnum);
+				cout << "Item now " << this->playerstatus.itemnum[0] << this->playerstatus.itemnum[1]
+					<< this->playerstatus.itemnum[2] << this->playerstatus.itemnum[3] << endl;
+
+				//set auto next target
+
+				for (int i = 0; i < enemynum; i++)
 				{
-					isfoundnexttarget = true;
-					targetstatus = &enemystatus[i];
-					targetentity = &enemy[i];
-					this->targetCursor.setCursorPosition(*this->targetentity);
-					break;
+					if (this->enemystatus[i].isdead == false)
+					{
+
+						targetstatus = &enemystatus[i];
+						targetentity = &enemy[i];
+						this->targetCursor.setCursorPosition(*this->targetentity);
+						break;
+					}
 				}
+				//update player status
+
+				this->playerstatus.current_exp += 100;
+
+				//check if player level up
+				if (this->playerstatus.current_exp >= this->playerstatus.max_exp)
+				{
+					this->playerstatus.UpdatePlayerlevel();
+					this->playerdamage.setText("LEVEL UP!");
+					this->playerdamage.isActive = true;
+					this->playerdamage.isTextshowend = false;
+				}
+				cout << this->playerstatus.current_exp << " " << this->playerstatus.lvl << " " << this->playerstatus.att << endl;
+
 			}
-			//update player status
-			
-			this->playerstatus.current_exp += 400;
-			
-			//check if player level up
-			if(this->playerstatus.current_exp>=this->playerstatus.max_exp)
-			{
-				this->playerstatus.UpdatePlayerlevel();
-				this->playerdamage.setText("LEVEL UP!");
-				this->playerdamage.isActive = true;
-				this->playerdamage.isTextshowend = false;
-			}
-			cout << this->playerstatus.current_exp << " " << this->playerstatus.lvl << " " << this->playerstatus.att << endl;
+			else if(!isPlayerturn) isEnemyturn = true;
+		}
 		// check if kill all
-		if (!isfoundnexttarget)
-		{	this->round++;
+		bool isenemytextactive = false;
+		for (int i = 0; i < enemynum; i++)if (enemytext[i].isActive)isenemytextactive = true;
+		if (enemydead == enemynum and !isenemytextactive)
+		{
+			this->round++;
 			this->deleteEnemy();
 			this->enemydead = 0;
 			this->isStageturn = true;
-			 //round clear
+			//round clear
 
 
 			if (this->round == this->roundlimit)
 			{
-				 //stage clear
-				
+				//stage clear
+
 				this->stagetext.setText("Stage Clear");
 				this->stagetext.isActive = true;
 				this->stagetext.isTextshowend = false;
 				this->isBattleend = true;
 				//backup player data
+				playerstatus.att -= playerstatus.atkchange;
+				playerstatus.def -= playerstatus.defchange;
 				*temp::TempStatus = playerstatus;
-			}	
+			}
 			else
 			{
 				this->stagetext.setText("Round Clear");
 				this->stagetext.isActive = true;
 				this->stagetext.isTextshowend = false;
-				
+
 			}
 		}
-		}	
 	}
 	void UpdateEnemyAttack()
 	{
@@ -1487,11 +1551,13 @@ public:
 				//set state
 				this->playerstate = 1;
 				this->enemystate[targetindex] = 2;
+				
 				this->isBusy = true;
 				//set enemy can attack
-				this->isEnemyturn = true;
+				//this->isEnemyturn = true;
 				//change turn to enemy 
 				this->isPlayerturn = false;
+				
 			}
 			//skill zone
 
@@ -1501,78 +1567,209 @@ public:
 	{
 		//enemy attack
 		this->UpdateEnemyAttack();
+	}
+	void UpdateSkillUse()
+	{
 
+		string skillname[2] = { "SKILL1","SKILL2"};
+		for (int i = 0; i < 2; i++)
+		{
 
-		//chang turn to player while enemy stop
-		//if (this->isEnemystop)this->isPlayerturn = true;
+			if (this->Skillbuttons[skillname[i]]->isPressed() and this->isPlayerturn)
+			{
+
+				if (this->playerstatus.stamina<playerstatus.skillcost[i])
+				{
+					cout << "Stamina for skill " << i << " not enough " << endl;
+					//show text
+					this->playerdamage.setText("Stamina not enough!");
+					isSkillUsed = false;
+
+				}
+				else isSkillUsed = true;
+
+				if (isSkillUsed) {
+					//set target index
+					auto targetindex = targetstatus - &enemystatus[0];
+			
+					switch (i)
+					{
+					case 0:
+						cout << "skill 1 used" << endl;
+						this->playerdamage.setText("Skill 1 Active");
+						this->playerstatus.skillAttack(targetstatus,1.5);
+						cout << "Skill to enemy " << targetindex << " " << targetstatus->hp << endl;
+						//show damage
+						this->enemytext[targetindex].setText(this->enemytext[targetindex].intTostring(this->enemystatus[targetindex].damageReceived));
+						this->enemytext[targetindex].isActive = true;
+						//set state
+						this->playerstate = 1;
+						this->enemystate[targetindex] = 2;
+
+						playerstatus.stamina -= playerstatus.skillcost[i];
+						break;
+					case 1:
+						cout << "skill 2 used" << endl;
+						this->playerdamage.setText("Skill 2 Active");
+					
+						for (int i = 0; i < enemynum; i++)
+						{
+							if (!enemystatus[i].isdead) {
+								this->playerstatus.skillAttack(&enemystatus[i], 0.5);
+								cout << "Skill to enemy " << targetindex << " " << targetstatus->hp << endl;
+								//show damage
+								this->enemytext[i].setText(this->enemytext[i].intTostring(this->enemystatus[i].damageReceived));
+								this->enemytext[i].isActive = true;
+								//set state
+								this->enemystate[i] = 2;
+							}
+						}
+						this->playerstate = 1;
+						playerstatus.stamina -= playerstatus.skillcost[i];
+						break;
+					}
+				
+				
+				
+				}
+				this->playerdamage.isActive = true;
+				this->playerdamage.isTextshowend = false;
+			}
+		}
+		if (this->isSkillUsed)
+		{
+			//close windwo
+			isSkillwindowActive = false;
+			this->Skillbuttons["SKILL1"]->buttonState = button_states::BTN_IDLE;
+			this->Skillbuttons["SKILL2"]->buttonState = button_states::BTN_IDLE;
+			currentbutton = &this->Mainbuttons;
+			//change turn
+				//this->isEnemyturn = true;
+				this->isPlayerturn = false;
+				this->isSkillUsed = false;
+			
+		}
 	}
 	void UpdateItemUse()
 	{
 		string itemname[4] = { "ITEM1","ITEM2","ITEM3","ITEM4" };
 		for (int i = 0; i < 4; i++)
 		{
+			
 			if (this->Itembuttons[itemname[i]]->isPressed() and this->isPlayerturn)
 			{
+				
 				if (this->playerstatus.itemnum[i] <= 0)
 				{
 					cout << "Item " << i << " not enough " << endl;
-					continue;
+					//show text
+					this->playerdamage.setText("Item "+playerdamage.intTostring(i)+" not enough!");
+					isItemUsed = false;
+				
 				}
-				switch (i)
-				{
-				case 0:this->playerstatus.att += 0.2f * this->playerstatus.att;
-					cout << "effect +att " << endl;
-					break;
-				case 1:this->playerstatus.def += 0.2f * this->playerstatus.def;
-					cout << "effect +deff" << endl;
-					break;
-				case 2:this->playerstatus.hp += 0.5f * this->playerstatus.max_hp;
-					cout << "effect +hp" << endl;
-					break;
-				case 3:this->playerstatus.stamina += 0.5f * this->playerstatus.max_stamina;
-					cout << "effect +stamina" << endl;
-					break;
+				else isItemUsed = true;
 
+				if (isItemUsed) {
+					float newstat;
+					switch (i)
+					{
+					case 0:
+						newstat=0.2f * this->playerstatus.att;
+						this->playerstatus.att += newstat;
+						this->playerdamage.setText("Atk + "+playerdamage.intTostring(newstat));
+						playerstatus.atkchange += newstat;
+						cout << "effect +att " << endl;
+						break;
+					case 1:
+						newstat = 0.2f * this->playerstatus.def;
+						this->playerstatus.def += newstat;
+						this->playerdamage.setText("Def + " + playerdamage.intTostring(newstat));
+						playerstatus.defchange += newstat;
+						cout << "effect +deff" << endl;
+						break;
+					case 2:
+						newstat=0.2f * this->playerstatus.max_hp;
+						if (playerstatus.hp + newstat > playerstatus.max_hp)
+						{
+							newstat = playerstatus.max_hp - playerstatus.hp;
+							playerstatus.hp = playerstatus.max_hp;
+						}
+						else playerstatus.hp += newstat;
+
+						playerdamage.setText("HP + " + playerdamage.intTostring(newstat));
+						cout << "effect +hp" << endl;
+						break;
+					case 3:
+						newstat=0.5f * this->playerstatus.max_stamina;
+						if (playerstatus.stamina + newstat > playerstatus.max_stamina)
+						{
+							newstat = playerstatus.max_stamina - playerstatus.stamina;
+							playerstatus.stamina = playerstatus.max_stamina;
+						}
+						else playerstatus.stamina += newstat;
+						playerdamage.setText("SP + " + playerdamage.intTostring(newstat));
+						cout << "effect +stamina" << endl;
+						break;
+
+					}
+					cout << "Use Item " << i << endl;
+					this->playerstatus.itemnum[i]--;
+					//Item disappear after use ; unlike playerstatus if dead-> status back to before battle
+					temp::TempStatus->itemnum[i]--;
+					cout << "Item" << i << " remain " << playerstatus.itemnum[i] << endl;
+				
+					
 				}
-				cout << "Use Item " << i << endl;
-				this->playerstatus.itemnum[i]--;
-				//Item disappear after use ; unlike playerstatus if dead-> status back to before battle
-				temp::TempStatus->itemnum[i]--;
-				cout << "Item" << i << " remain " << playerstatus.itemnum[i] << endl;
+					this->playerdamage.isActive = true;
+					this->playerdamage.isTextshowend = false;
+				
 			}
 		}
-
+		if (this->isItemUsed)
+		{
+			if (this->isItemwindowActive==false)
+			{
+				this->isEnemyturn = true;
+				//change turn to enemy 
+				this->isPlayerturn = false;
+				this->isItemUsed = false;
+			}
+		}
 	}
 	void PlayerSetTarget()
 	{
-		//set target
-		if (this->enemy[0].isClickat(mousePosView) and !(this->enemystatus[0].isdead))
-		{
-			targetstatus = &enemystatus[0];
-			targetentity = &enemy[0];
-			this->targetCursor.setCursorPosition(*this->targetentity);
-			cout << "Click enemy 0" << endl;
-		}
-		if (this->enemy[1].isClickat(mousePosView) and !(this->enemystatus[1].isdead))
-		{
-			targetstatus = &enemystatus[1];
-			targetentity = &enemy[1];
-			this->targetCursor.setCursorPosition(*this->targetentity);
-			cout << "Click enemy 1" << endl;
-		}if (this->enemy[2].isClickat(mousePosView) and !(this->enemystatus[2].isdead))
-		{
-			targetstatus = &enemystatus[2];
-			targetentity = &enemy[2];
-			this->targetCursor.setCursorPosition(*this->targetentity);
-			cout << "Click enemy 2" << endl;
+		if (!this->isItemwindowActive ) {
+			//set target
+			if (this->enemy[0].isClickat(mousePosView) and !(this->enemystatus[0].isdead))
+			{
+				targetstatus = &enemystatus[0];
+				targetentity = &enemy[0];
+				this->targetCursor.setCursorPosition(*this->targetentity);
+				cout << "Click enemy 0" << endl;
+			}
+			if (this->enemy[1].isClickat(mousePosView) and !(this->enemystatus[1].isdead))
+			{
+				targetstatus = &enemystatus[1];
+				targetentity = &enemy[1];
+				this->targetCursor.setCursorPosition(*this->targetentity);
+				cout << "Click enemy 1" << endl;
+			}if (this->enemy[2].isClickat(mousePosView) and !(this->enemystatus[2].isdead))
+			{
+				targetstatus = &enemystatus[2];
+				targetentity = &enemy[2];
+				this->targetCursor.setCursorPosition(*this->targetentity);
+				cout << "Click enemy 2" << endl;
+			}
 		}
 	}
 	void ResetenemyAttack()
 	{
+		//reset enemy attack
 		for (int i = 0; i < this->enemynum; i++)
 		{
 			this->enemystatus[i].isAttacked = false;
 		}
+		
 	}
 
 	void updateInput(const float& dt)
@@ -1581,13 +1778,15 @@ public:
 			this->PlayerSetTarget();
 			
 			if (this->isPlayerturn and this->stagetext.isTextshowend and !this->isBusy)
-			{
+			{	//reset enemy attack
+				this->ResetenemyAttack();
 				//update attack zone
 				this->UpdateAttack();
 				//update if Item use
 				this->UpdateItemUse();	
-				//reset enemy attack
-				this->ResetenemyAttack();
+				//update if skill use
+				this->UpdateSkillUse();
+				
 			}
 			//update status 
 			
@@ -1643,7 +1842,22 @@ public:
 			this->Itembuttons["EXITITEM"]->buttonState = button_states::BTN_IDLE;
 			currentbutton = &this->Mainbuttons;
 		}
+		//skill
+		if (this->Mainbuttons["SKILL"]->isPressed())
+		{
+			this->isSkillwindowActive = true;
+			this->Mainbuttons["SKILL"]->buttonState = button_states::BTN_IDLE;
+			currentbutton = &this->Skillbuttons;
 
+
+		}
+		//close skill 
+		if (this->Skillbuttons["EXITSKILL"]->isPressed())
+		{
+			this->isSkillwindowActive = false;
+			this->Skillbuttons["EXITSKILL"]->buttonState = button_states::BTN_IDLE;
+			currentbutton = &this->Mainbuttons;
+		}
 		//Quit the game
 		if (this->Mainbuttons["RUN"]->isPressed())
 		{
@@ -1745,6 +1959,22 @@ public:
 		{
 		this->playerStatText[i].AlwaysUpdatetext(this->PlayerstatString[i],*this->playerstatusstat[i],dt);
 		}
+		//update Item remain
+		if (isItemwindowActive)
+		{
+			for (int i = 0; i < 4; i++)
+			{
+				this->Itemstatus[i].AlwaysUpdatetext("",this->playerstatus.itemnum[i], dt);
+			}
+		}
+		if (isSkillwindowActive)
+		{
+			for (int i = 0; i < 2; i++)
+			{
+				this->Skillstatus[i].AlwaysUpdatetext("", this->playerstatus.skillcost[i], dt);
+			}
+		}
+
 		//update round num text
 		this->Roundtext.AlwaysUpdatetext("Round ", (this->round)+1, dt);
 
@@ -1784,7 +2014,7 @@ public:
 
 		//render player zone
 		if (this->stagetext.isTextshowend)this->player.render(*target);
-
+	
 		//render enemy zone
 		for (int i = 0; i < enemynum; i++)
 		{
@@ -1807,7 +2037,7 @@ public:
 		target->draw(this->stagetext.text);
 		if (this->stagetext.isTextshowend)target->draw(this->Roundtext.text);
 		//render other text
-		target->draw(this->playerdamage.text);
+		if(playerdamage.isActive)target->draw(this->playerdamage.text);
 		
 		
 
@@ -1822,6 +2052,16 @@ public:
 
 		//render item window
 		if (this->isItemwindowActive)target->draw(this->Itemwindow);
+		if (isItemwindowActive)
+		{
+			for (int i = 0; i < 4;i++)target->draw(Itemstatus[i].text);
+		}
+		//render skill window
+		if (this->isSkillwindowActive)target->draw(this->Skillwindow);
+		if (isSkillwindowActive)
+		{
+			for (int i = 0; i < 2; i++)target->draw(Skillstatus[i].text);
+		}
 		//render button
 		this->renderButtons(target);
 
